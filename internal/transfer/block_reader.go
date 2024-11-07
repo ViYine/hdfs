@@ -120,18 +120,20 @@ func (br *BlockReader) Read(b []byte) (int, error) {
 // Skip attempts to discard bytes in the stream in order to skip forward. This
 // is an optimization for the case that the amount to skip is very small. It
 // returns an error if skip was not attempted at all (because the BlockReader
-// isn't connected, or the offset is out of bounds or too far ahead) or the seek
-// failed for some other reason.
-func (br *BlockReader) Skip(off int64) error {
+// isn't connected, or the resulting offset would be out of bounds or too far
+// ahead) or the copy failed for some other reason.
+func (br *BlockReader) Skip(n int64) error {
+	if n == 0 {
+		return nil
+	}
 	blockSize := int64(br.Block.GetB().GetNumBytes())
-	amountToSkip := off - br.Offset
+	resultingOffset := br.Offset + n
 
-	if br.stream == nil || off < 0 || off >= blockSize ||
-		amountToSkip < 0 || amountToSkip > maxSkip {
+	if br.stream == nil || n < 0 || n > maxSkip || resultingOffset >= blockSize {
 		return errors.New("unable to skip")
 	}
 
-	_, err := io.CopyN(io.Discard, br.stream, amountToSkip)
+	_, err := io.CopyN(io.Discard, br.stream, n)
 	if err != nil {
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
@@ -184,19 +186,25 @@ func (br *BlockReader) connectNext() error {
 	checksumInfo := readInfo.GetChecksum()
 
 	var checksumTab *crc32.Table
+	var checksumSize int
 	checksumType := checksumInfo.GetType()
 	switch checksumType {
 	case hdfs.ChecksumTypeProto_CHECKSUM_CRC32:
 		checksumTab = crc32.IEEETable
+		checksumSize = 4
 	case hdfs.ChecksumTypeProto_CHECKSUM_CRC32C:
 		checksumTab = crc32.MakeTable(crc32.Castagnoli)
+		checksumSize = 4
+	case hdfs.ChecksumTypeProto_CHECKSUM_NULL:
+		checksumTab = nil
+		checksumSize = 0
 	default:
 		return fmt.Errorf("unsupported checksum type: %d", checksumType)
 	}
 
 	chunkOffset := int64(readInfo.GetChunkOffset())
 	chunkSize := int(checksumInfo.GetBytesPerChecksum())
-	stream := newBlockReadStream(conn, chunkSize, checksumTab)
+	stream := newBlockReadStream(conn, chunkSize, checksumTab, checksumSize)
 
 	// The read will start aligned to a chunk boundary, so we need to skip
 	// forward to the requested offset.

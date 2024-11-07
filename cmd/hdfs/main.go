@@ -22,7 +22,7 @@ var (
 The flags available are a subset of the POSIX ones, but should behave similarly.
 
 Valid commands:
-  ls [-lah] [FILE]...
+  ls [-lahR] [FILE]...
   rm [-rf] FILE...
   mv [-nT] SOURCE... DEST
   mkdir [-p] FILE...
@@ -32,6 +32,7 @@ Valid commands:
   cat SOURCE...
   head [-n LINES | -c BYTES] SOURCE...
   tail [-n LINES | -c BYTES] SOURCE...
+  test [-defsz] FILE...
   du [-sh] FILE...
   checksum FILE...
   get SOURCE [DEST]
@@ -45,6 +46,7 @@ Valid commands:
 	lsl    = lsOpts.Bool('l')
 	lsa    = lsOpts.Bool('a')
 	lsh    = lsOpts.Bool('h')
+	lsR    = lsOpts.Bool('R')
 
 	rmOpts = getopt.New()
 	rmr    = rmOpts.Bool('r')
@@ -56,6 +58,13 @@ Valid commands:
 
 	mkdirOpts = getopt.New()
 	mkdirp    = mkdirOpts.Bool('p')
+
+	testOpts = getopt.New()
+	teste    = testOpts.Bool('e')
+	testf    = testOpts.Bool('f')
+	testd    = testOpts.Bool('d')
+	testz    = testOpts.Bool('z')
+	tests    = testOpts.Bool('s')
 
 	touchOpts = getopt.New()
 	touchc    = touchOpts.Bool('c')
@@ -95,6 +104,7 @@ func init() {
 	duOpts.SetUsage(printHelp)
 	getmergeOpts.SetUsage(printHelp)
 	dfOpts.SetUsage(printHelp)
+	testOpts.SetUsage(printHelp)
 }
 
 func main() {
@@ -109,7 +119,7 @@ func main() {
 		fatal("gohdfs version", version)
 	case "ls":
 		lsOpts.Parse(argv)
-		ls(lsOpts.Args(), *lsl, *lsa, *lsh)
+		ls(lsOpts.Args(), *lsl, *lsa, *lsh, *lsR)
 	case "rm":
 		rmOpts.Parse(argv)
 		rm(rmOpts.Args(), *rmr, *rmf)
@@ -148,6 +158,9 @@ func main() {
 	case "df":
 		dfOpts.Parse(argv)
 		df(*dfh)
+	case "test":
+		testOpts.Parse(argv)
+		test(testOpts.Args(), *teste, *testf, *testd, *testz, *tests)
 	case "truncate":
 		truncate(argv[1:])
 	// it's a seeeeecret command
